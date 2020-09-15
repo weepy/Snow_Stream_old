@@ -1,0 +1,7 @@
+{
+  "extends": "@snowpack/app-scripts-svelte",
+  "plugins": [],
+  "buildOptions": {
+    "sourceMaps": true
+  }
+}
