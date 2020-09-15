@@ -1,22 +1,18 @@
-const express = require('express')
-const app = express()
+// const express = require('express')
+// const app = express()
 
 const WebSocket = require('ws')
 
-const ROOT = path.resolve(`${__dirname}/../`)
-app.use(express.static(ROOT+'/public'))
-app.use(express.static(ROOT+'/uploads'))
 
-
-app.get('*', function(req, res, next) {
-  res.sendFile(ROOT+'/public/index.html')
-})
+// app.get('*', function(req, res, next) {
+//   res.sendFile(ROOT+'/public/index.html')
+// })
 
 // app.use('/', express.static(__dirname + '/public'))
 
-app.listen(8080, () => {
-  console.log(`Listening at http://:${port}`)
-})
+// app.listen(8080, () => {
+//   console.log(`Listening at http://:${port}`)
+// })
 
 
 const wss = new WebSocket.Server({ port: 9090 })
@@ -34,7 +30,6 @@ const Messages = {
     
 }
 
-const FAKE_DELAY = 100
 function get16(data, offset) {
   return data[offset*2] + data[offset*2+1]*256
 }
