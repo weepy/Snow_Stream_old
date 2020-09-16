@@ -27,9 +27,9 @@ export function captureAudio(recordingContext, {deviceId, chunkSize}, chunkCallb
 export  function cloneAudioBuffer(buf) {
     const audioBuffer = new AudioBuffer({ sampleRate: buf.sampleRate, length: buf.length, numberOfChannels: buf.numberOfChannels})
 
-    audioBuffer.copyFromChannel(buf.getChannelData(0), 0, 0)
-    audioBuffer.copyFromChannel(buf.getChannelData(0), 1, 0)
-
+    audioBuffer.copyToChannel(buf.getChannelData(0), 0, 0)
+    audioBuffer.copyToChannel(buf.getChannelData(1), 1, 0)
+    
     return audioBuffer
 } 
 

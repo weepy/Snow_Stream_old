@@ -184,7 +184,7 @@ function startRecording() {
 
 
 
-            const delaySamples = config.capturePlaybackDelayMs*44.1
+            const delaySamples = config.capturePlaybackDelayMs*44.1-config.chunkSize
             
             audioPlayer.play(audioBuffer, offsetSamples, delaySamples)
 
