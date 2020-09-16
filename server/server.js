@@ -49,12 +49,16 @@ wss.on('connection', function connection(ws) {
 
       const message = get16(data, 0)
       const channel_id = get16(data, 1)
+      const packet_id = get16(data, 2)
+      const delay = get16(data, 3)
+
+      console.log(message, channel_id, packet_id, delay)
       
 
 
       if(message == Messages.PUBLISH) {
       
-          const delay = get16(data, 3)
+          
           
           if(delay != 0) {
             setTimeout(() => {

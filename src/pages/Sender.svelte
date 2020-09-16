@@ -1,6 +1,6 @@
 <script>
 import AudioInputSelector from "../components/AudioInputSelector.svelte"
-import { fillBufferWithSine, fillBufferWithClick, captureAudio, uuid } from '../lib/utils.js'
+import { fillBufferWithSine, fillBufferWithSine2, fillBufferWithClick, captureAudio, uuid, rmsBuffer,setStereoGain, cloneAudioBuffer } from '../lib/utils.js'
 import Packet from '../api/Packet.js'
 import Messages from '../api/Messages.js'
 import AudioPlayer from '../api/AudioPlayer.js'
@@ -9,7 +9,9 @@ import Sock from "../api/Sock.js"
 
 let recording = false
 let recordingContext
+let playbackContext
 let latency= ""
+let startedAt = null
 
 /// LOAD CONFIG
 
@@ -19,16 +21,23 @@ if(sessionId == "") {
     document.location.href="/?"+uuid(16)
 }
 
+
 const config = {
-    playbackDelayMs: 100,
+    capturePlaybackDelayMs: 1000,
+    receivedPlaybackDelayMs: 1000,
+    // delayCapturedPlayback:
     publishChannel: 123,
     subscribeChannel: 124,
     fillBuffer: "input",
     fakeDelayMs: 0,
     chunkSize: 4096,
     playReceivedAudio: true,
+    playCapturedAudio: false,
+    serverUrl: "ws://localhost:9090",
     ...JSON.parse(localStorage.getItem("config_"+sessionId)||"{}")
 }
+
+$: console.log(config.fillBuffer )
 
 setInterval(() => {
     localStorage["config_"+sessionId] = JSON.stringify(config)
@@ -40,29 +49,48 @@ setInterval(() => {
 let capturePacketId = -1
 let receivedPacketId = 0
 let deltaPacketNum = 0
-let audioPlayer
-let subscribed
+let audioPlayer = new AudioPlayer()
+let subscribed 
 
-let sock = new Sock("ws://" + document.location.hostname + ":9090")
+let sock = new Sock(config.serverUrl)
 
 let remotePacketQueue = []
 
 sock.onaudiodata = (data) => {
-    // console.log("audiodata", data.length)
-
     const packet = Packet.fromBuffer(data)
 
-    const buf = packet.createAudioBuffer()
+    const audioBuffer = packet.createAudioBuffer()
 	
 	if(data[2] != receivedPacketId +1) {
 		console.log("received packet out of sync", receivedPacketId, data[2])
 	}
 
     receivedPacketId = packet.data[2]
+
+    // console.log("receivedPacketId", receivedPacketId)
     
     if(config.playReceivedAudio) {
-        audioPlayer.playAudioBuffer(buf, config.playbackDelayMs)
-    }
+        
+        // if(startedAt == null) {
+        //     playbackContext = new AudioContext({latencyHint: "playback"})
+        //     startedAt = playbackContext.currentTime
+        // }
+
+        setStereoGain(audioBuffer, [0,1])
+
+        const offsetSamples = receivedPacketId*config.chunkSize
+        // const sample = playbackContext.createBufferSource()
+        // sample.buffer = audioBuffer
+        // sample.connect(playbackContext.destination)
+
+        const delaySamples = config.receivedPlaybackDelayMs*44.1
+
+        audioPlayer.play( audioBuffer, offsetSamples, delaySamples)
+        
+        // sample.start(startedAt + )// c
+
+        // audioPlayer.playAudioBuffer(audioBuffer, receivedPacketId*config.chunkSize+config.receivedPlaybackDelayMs*44.1)
+    }   
     
 
     if(config.fillBuffer == "remote") {
@@ -71,7 +99,7 @@ sock.onaudiodata = (data) => {
 
 //    latency = Math.floor((recordingContext.currentTime -  audioPlayer.currentTime())*1000)
 
-	deltaPacketNum = receivedPacketId - capturePacketId
+	// deltaPacketNum = 
 }
 
 sock.onsubscribe = (data) => {
@@ -88,7 +116,8 @@ function stopRecording() {
 	// unsubscribe()
 
 	recording = false
-	latency=""
+    latency=""
+       // audioPlayer.stop()
 }
 
 function startRecording() {
@@ -96,7 +125,10 @@ function startRecording() {
 	
     let sendPacketId = 0
     
-	captureAudio(recordingContext, {deviceId: localStorage.audioInputDeviceId, chunkSize: config.chunkSize}, (audioBuffer) => {
+    
+	captureAudio(recordingContext, {deviceId: localStorage.audioInputDeviceId, chunkSize: config.chunkSize}, (_audioBuffer) => {
+
+        const audioBuffer = cloneAudioBuffer(_audioBuffer)
 
         if(config.fillBuffer == "remote") {
 
@@ -109,6 +141,9 @@ function startRecording() {
 
                 capturePacketId = sendPacketId
                 sendPacketId++
+                
+                // console.log("sending packet id (bounce)", packet.data[2])
+
                 // const packet = new Packet([Messages.AUDIO_DATA, publishChannel, capturePacketId, fakeDelayMs, receivedPacketId], audioBuffer)
                 sock.emit(packet)
             }
@@ -116,21 +151,57 @@ function startRecording() {
             return 
         }
 
+        const offsetSamples = sendPacketId*config.chunkSize
 
 		if(config.fillBuffer == "sine") {
-			fillBufferWithSine(audioBuffer)
+			fillBufferWithSine(audioBuffer, offsetSamples)
+        }
+        if(config.fillBuffer == "sine2") {
+			fillBufferWithSine2(audioBuffer, offsetSamples)
         }
         else if(config.fillBuffer == "click") {
-            fillBufferWithClick(audioBuffer)
+            fillBufferWithClick(audioBuffer, offsetSamples)
         }
         
-        capturePacketId = sendPacketId
-        sendPacketId++
+       
 		
 		const packet = new Packet([Messages.AUDIO_DATA, config.publishChannel, capturePacketId, config.fakeDelayMs, receivedPacketId], audioBuffer)
 		
-        sock.emit(packet)
-        
+       sock.emit(packet)
+
+        if(config.playCapturedAudio) {
+            setStereoGain(audioBuffer, [1,0])
+
+            // if(startedAt == null) {
+            //     playbackContext = new AudioContext({latencyHint: "playback"})
+            //     startedAt = playbackContext.currentTime
+            // }
+
+            
+            // const sample = playbackContext.createBufferSource()
+            // sample.buffer = audioBuffer
+            // sample.connect(playbackContext.destination)
+
+
+
+            const delaySamples = config.capturePlaybackDelayMs*44.1
+            
+            audioPlayer.play(audioBuffer, offsetSamples, delaySamples)
+
+          //  console.log(offsetSamples, delaySamples, audioPlayer.syncPoint() )
+            // sample.start(startedAt + offsetSamples/44100 + delay)// config.capturePlaybackDelayMs/1000)
+            // console.log(startedAt, offsetSamples/44100, delay)
+            
+            // audioPlayer.playAudioBuffer(audioBuffer, capturePacketId*config.chunkSize, config.capturePlaybackDelayMs*44.1)
+        }
+
+         capturePacketId = sendPacketId
+        sendPacketId++
+        // else {
+        //     audioPlayer.stop()
+        // }
+
+        // console.log("sending packet id", capturePacketId)
 
 	})
 
@@ -142,14 +213,14 @@ function startRecording() {
 function subscribe() {
     const packet = new Packet([Messages.SUBSCRIBE, config.subscribeChannel, 1])
     sock.emit(packet)
-    audioPlayer = new AudioPlayer()
+    
 	subscribed = true
 }
 
 function unsubscribe() {
     const packet = new Packet([Messages.SUBSCRIBE, config.subscribeChannel, 0])
     sock.emit(packet)
-    audioPlayer.close()
+    // audioPlayer.close()
 	subscribed = false
 }
 
@@ -159,6 +230,15 @@ function unsubscribe() {
 <div class="App">
 	<h1>SnowStream</h1>
 
+    
+
+    <p>
+        <label>Server Address</label>
+        <input type="text" bind:value={config.serverUrl} />
+    </p>
+
+
+    <hr />
 
     <h2>Publish Audio</h2>    
     <p>
@@ -166,18 +246,21 @@ function unsubscribe() {
         <input type="number" bind:value={config.publishChannel} />
     </p>
 
+    <p><label>Last sent packetId: </label>{capturePacketId}</p>
+
     <p>
     <label>Fill Buffer</label>
     <select bind:value={config.fillBuffer} >
     <option value="input">audio device</option>
     <option value="sine">sine wave</option>
+    <option value="sine2">sine wave 2</option>
     <option value="click">1s click</option>
     <option value="remote">subcribed audio</option>
     </select>
     </p>
 
     <p>
-    <label>Fake Delay (ms)</label>
+    <label>Fake Sending Latency (ms)</label>
     <input type="number" bind:value={config.fakeDelayMs} />
     </p>
     
@@ -189,11 +272,21 @@ function unsubscribe() {
         <label>Chunk Size</label>
         <input type="number" bind:value={config.chunkSize} />
     </p>
+
+    <p>
+        <label>Playback Delay (ms)</label>
+        <input type="number" bind:value={config.capturePlaybackDelayMs} />
+    </p>
+    
+
+
     
     <p>
+    <label>Play Captured Audio</label>
+    <input type="checkbox" bind:checked={config.playCapturedAudio} />
+    </p>
 
-    
-
+    <p>
 	{#if recording } 
 		<button on:click={stopRecording}>Stop</button>
 	{:else} 
@@ -210,7 +303,7 @@ function unsubscribe() {
     <label>Subscribe Channel Id</label><input type="number" bind:value={config.subscribeChannel} />
     </p>
     
-
+    <p><label>Last received packetId:</label> {receivedPacketId}</p>
     <p>
     <label>Play Received Audio</label>
     <input type="checkbox" bind:checked={config.playReceivedAudio} />
@@ -220,13 +313,13 @@ function unsubscribe() {
         Delta chunks
     </label>
     <span>
-        {deltaPacketNum} 
+        {receivedPacketId - capturePacketId} 
     </span></p>
 
 
     <p>
     <label>Playback Delay (ms)</label>
-    <input type="number" bind:value={config.playbackDelayMs} />
+    <input type="number" bind:value={config.receivedPlaybackDelayMs} />
     </p>
 
 

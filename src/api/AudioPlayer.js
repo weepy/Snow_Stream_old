@@ -1,55 +1,51 @@
-export default function AudioPlayer() {
+export default function AudioPlayer(audioContext) {
+  
+  // let totalSamples
+  audioContext = audioContext || new AudioContext({latencyHint:"playback"})
+  let syncPoint
   
 
-  let playStartedAt 
-
-  let totalSamples
-  let playingContext = new AudioContext()
-
-  // let LATENCY = 0.1
-
-  function playAudioBuffer(audioBuffer, playbackDelayMs) {
-
-    if(!playStartedAt) {
-        playStartedAt = playingContext.currentTime 
-        totalSamples = 0
-    }
-
-    // const ch = e.data
-    const chunkLength = audioBuffer.length
-
-  //   const audioBuffer = playingContext.createBuffer(2, chunkLength, 44100)
-  //   audioBuffer.getChannelData(0).set(ch[0])
-  //   audioBuffer.getChannelData(1).set(ch[1])
-
-    const sample = playingContext.createBufferSource()
-    sample.buffer = audioBuffer
-    sample.connect(playingContext.destination)
-
-    const startAt = playStartedAt + playbackDelayMs/1000 + totalSamples/44100;
-
-    // if (playingContext.currentTime >= startAt) {        
-    //     skip ++
-    //     if(Date.now()%100 == 0)
-    //           console.log("skip", playingContext.currentTime - startAt)
-    // }
-
-    
-    totalSamples += chunkLength
-
-    sample.start(startAt)
-
-    return playingContext.currentTime
+  function synchronize(offsetSamples) {
+    syncPoint = audioContext.currentTime - offsetSamples/44100
   }
 
-  return {
-    playAudioBuffer,
-    playingContext,
-    currentTime() {
-      return playingContext.currentTime - playStartedAt
-    },
-    close: () => {
-      playingContext.close()
+  function play(audioBuffer, offsetSamples, delaySamples) {
+    
+    if(syncPoint == null) {
+      synchronize(offsetSamples)
     }
+
+    const sample = audioContext.createBufferSource()
+    sample.buffer = audioBuffer
+    sample.connect(audioContext.destination)
+
+    const startAt = syncPoint + (offsetSamples+delaySamples)/44100
+    sample.start(startAt)    
+  }
+
+  function play2(audioBuffer) {
+    const sample = audioContext.createBufferSource()
+    sample.buffer = audioBuffer
+    sample.connect(audioContext.destination)
+
+    sample.start(audioContext.currentTime + 1)// in sec
+  }
+  return {
+    play,
+    play2,
+    synchronize,
+    audioContext,
+    syncPoint() {
+      return syncPoint
+    }
+    // currentTime() {
+    //   return audioContext.currentTime - playStartedAt
+    // },
+    // syncPoint() {
+    //   playStartedAt = null
+    // },
+    // close: () => {
+    //   playingContext.close()
+    // }
   }
 }

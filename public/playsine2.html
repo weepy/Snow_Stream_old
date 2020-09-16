@@ -1,0 +1,108 @@
+<script>
+    const context = new AudioContext({latencyHint:"playback"})
+    
+    let fillType = 1
+
+    function toggle() {
+      fillType = 1-fillType
+    }
+
+    function AudioPlayer(audioContext) {
+  
+        // let totalSamples
+        audioContext = audioContext || new AudioContext({latencyHint:"playback"})
+
+        let syncPoint
+        
+        function synchronize(offsetSamples) {
+            syncPoint = audioContext.currentTime - offsetSamples/44100
+        }
+
+        function play(audioBuffer, offsetSamples, delaySamples) {
+            
+            if(syncPoint == null) {
+            synchronize(offsetSamples)
+            }
+
+            const sample = audioContext.createBufferSource()
+            sample.buffer = audioBuffer
+            sample.connect(audioContext.destination)
+
+            const startAt = syncPoint + (offsetSamples+delaySamples)/44100
+            sample.start(startAt)    
+        }
+
+        function play2(audioBuffer) {
+            const sample = audioContext.createBufferSource()
+            sample.buffer = audioBuffer
+            sample.connect(audioContext.destination)
+
+            sample.start(audioContext.currentTime + 1)// in sec
+        }
+        return {
+            play
+            
+        }
+
+    }
+
+    function fillBufferWithClick(buffer, offset) {
+      const chunkSize = buffer.length
+      const ch = [ buffer.getChannelData(0), buffer.getChannelData(1)]
+      // const time = sentSamples/44100
+
+      for(let i=0; i<chunkSize;i++) {
+        const second = Math.floor((offset+i)/44100)
+
+        let env = ((offset+i)/44100)%1
+        env = Math.pow(1-env, 20)
+
+        ch[0][i] = Math.cos((offset+i)/50) * env
+        ch[1][i] = Math.cos((offset+i)/50) * env
+      }
+
+  }
+
+
+    function fillBufferWithSine(buffer, offset) {
+      const chunkSize = buffer.length
+      const ch = [ buffer.getChannelData(0), buffer.getChannelData(1)]
+      for(let i=0; i<chunkSize;i++) {
+        ch[0][i] = Math.sin((offset+i)/50)
+        ch[1][i] = Math.cos((offset+i)/50)
+      }
+    
+      // sentSamples += chunkSize
+      return offset + chunkSize
+    }
+    
+    const chunkSize = 4096
+    const sampleRate = 44100
+    let offset = 0
+    let startTime
+    let delay = 2
+    
+    const audioPlayer = new AudioPlayer()
+
+    setInterval(() => {
+    
+        const buffer = new AudioBuffer({ sampleRate: 44100, length: chunkSize, numberOfChannels: 2})
+        
+        if(fillType) {
+            fillBufferWithSine(buffer, offset)
+        }
+        else {
+            fillBufferWithClick(buffer, offset)
+        }
+
+        
+        
+        audioPlayer.play(buffer, offset, delay*44100)
+        offset+= chunkSize
+
+        
+    }, chunkSize/sampleRate*1000)
+        
+    </script>
+    
+    <button onclick="toggle()">toggle</button>
