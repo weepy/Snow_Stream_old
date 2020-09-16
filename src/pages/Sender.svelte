@@ -126,9 +126,9 @@ function startRecording() {
     let sendPacketId = 0
     
     
-	captureAudio(recordingContext, {deviceId: localStorage.audioInputDeviceId, chunkSize: config.chunkSize}, (_audioBuffer) => {
+	captureAudio(recordingContext, {deviceId: localStorage.audioInputDeviceId, chunkSize: config.chunkSize}, (chunk) => {
 
-        const audioBuffer = cloneAudioBuffer(_audioBuffer)
+        
 
         if(config.fillBuffer == "remote") {
 
@@ -150,26 +150,30 @@ function startRecording() {
 
             return 
         }
+        
 
         const offsetSamples = sendPacketId*config.chunkSize
 
 		if(config.fillBuffer == "sine") {
-			fillBufferWithSine(audioBuffer, offsetSamples)
+			fillBufferWithSine(chunk, offsetSamples)
         }
         if(config.fillBuffer == "sine2") {
-			fillBufferWithSine2(audioBuffer, offsetSamples)
+			fillBufferWithSine2(chunk, offsetSamples)
         }
         else if(config.fillBuffer == "click") {
-            fillBufferWithClick(audioBuffer, offsetSamples)
+            fillBufferWithClick(chunk, offsetSamples)
         }
         
-       
 		
-		const packet = new Packet([Messages.AUDIO_DATA, config.publishChannel, capturePacketId, config.fakeDelayMs, receivedPacketId], audioBuffer)
+		const packet = new Packet([Messages.AUDIO_DATA, config.publishChannel, capturePacketId, config.fakeDelayMs, receivedPacketId], chunk)
 		
        sock.emit(packet)
 
         if(config.playCapturedAudio) {
+            const audioBuffer = new AudioBuffer({sampleRate:44100, length: config.chunkSize, numberOfChannels: 2})
+            audioBuffer.copyToChannel(chunk[0], 0, 0)
+            audioBuffer.copyToChannel(chunk[1], 1, 0)
+            
             setStereoGain(audioBuffer, [1,0])
 
             // if(startedAt == null) {

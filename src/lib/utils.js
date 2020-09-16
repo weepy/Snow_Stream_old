@@ -18,18 +18,26 @@ export function captureAudio(recordingContext, {deviceId, chunkSize}, chunkCallb
       source.connect(processor)
       processor.connect(recordingContext.destination)
       processor.onaudioprocess = function(e) {
-        chunkCallback(e.inputBuffer)
+        let chunk =[
+          e.inputBuffer.getChannelData(0).slice(),
+          e.inputBuffer.getChannelData(1).slice()
+        ]
+
+        chunkCallback(chunk)
         
       }
     })
   }
   
 export  function cloneAudioBuffer(buf) {
-    const audioBuffer = new AudioBuffer({ sampleRate: buf.sampleRate, length: buf.length, numberOfChannels: buf.numberOfChannels})
+    const audioBuffer = new AudioBuffer({ 
+        sampleRate: buf.sampleRate, 
+        length: buf.length, 
+        numberOfChannels: buf.numberOfChannels})
 
     audioBuffer.copyToChannel(buf.getChannelData(0), 0, 0)
     audioBuffer.copyToChannel(buf.getChannelData(1), 1, 0)
-    
+
     return audioBuffer
 } 
 
@@ -39,38 +47,34 @@ export function f_to_ui16(f) {
 }
 
 
-export function fillBufferWithSine(buffer, offset) {
-  const chunkSize = buffer.length
-  const ch = [ buffer.getChannelData(0), buffer.getChannelData(1)]
+export function fillBufferWithSine(ch, offset) {
+  
+
+  const chunkSize = ch[0].length
   for(let i=0; i<chunkSize;i++) {
     ch[0][i] = Math.sin((offset+i)/50)
     ch[1][i] = Math.cos((offset+i)/50)
   }
 
-  // sentSamples += chunkSize
-  return offset + chunkSize
+
 }
 
-export function fillBufferWithSine2(buffer, offset) {
-  const chunkSize = buffer.length
-  const ch = [ buffer.getChannelData(0), buffer.getChannelData(1)]
+export function fillBufferWithSine2(ch, offset) {
+  const chunkSize = ch[0].length
   for(let i=0; i<chunkSize;i++) {
     const t = offset+i
     ch[0][i] = ((t+Math.sin(t))/15080) % 1// * (2+ Math.sin(t/10000)*0.01))*0.01%1
     ch[1][i] = ch[0][i]
   }
 
-  // sentSamples += chunkSize
-  return offset + chunkSize
 }
 
-export function fillBufferWithClick(buffer, offset) {
-  const chunkSize = buffer.length
-  const ch = [ buffer.getChannelData(0), buffer.getChannelData(1)]
+export function fillBufferWithClick(ch, offset) {
+  const chunkSize = ch[0].length
+ 
   // const time = sentSamples/44100
 
   for(let i=0; i<chunkSize;i++) {
-    const second = Math.floor((offset+i)/44100)
 
     let env = ((offset+i)/44100)%1
     env = Math.pow(1-env, 20)
@@ -79,8 +83,6 @@ export function fillBufferWithClick(buffer, offset) {
     ch[1][i] = Math.cos((offset+i)/50) * env
   }
 
-  return offset + chunkSize
-  // sentSamples += chunkSize
 }
 
 export function uuid(N) {
