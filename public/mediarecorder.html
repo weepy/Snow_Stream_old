@@ -1,0 +1,74 @@
+<!-- load OpusMediaRecorder.umd.js. OpusMediaRecorder will be loaded. -->
+<script src="https://cdn.jsdelivr.net/npm/opus-media-recorder@latest/OpusMediaRecorder.umd.js"></script>
+<!-- load encoderWorker.umd.js. This should be after OpusMediaRecorder. -->
+<!-- This script tag will create OpusMediaRecorder.encoderWorker. -->
+<script src="https://cdn.jsdelivr.net/npm/opus-media-recorder@latest/encoderWorker.umd.js"></script>
+
+<script>
+
+// If you already load encoderWorker.js using <script> tag,
+// you don't need to define encoderWorkerFactory.
+const workerOptions = {
+  OggOpusEncoderWasmPath: 'https://cdn.jsdelivr.net/npm/opus-media-recorder@latest/OggOpusEncoder.wasm',
+  WebMOpusEncoderWasmPath: 'https://cdn.jsdelivr.net/npm/opus-media-recorder@latest/WebMOpusEncoder.wasm'
+};
+
+
+let recorder
+
+let context = new AudioContext()
+
+
+navigator.mediaDevices.getUserMedia( { audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false
+    }}).then(stream => {
+      
+    recorder = new MediaRecorder(stream, { audioBitsPerSecond : 128000, mimeType: "audio/webm;codecs=opus" }, workerOptions);
+    
+    console.log(recorder)
+
+    let dataChunks = [];
+    // Recorder Event Handlers
+    recorder.onstart = e => {
+      dataChunks = []
+      console.log('Recorder started');
+    }
+    
+    recorder.ondataavailable = (e) => {
+        if(e.data.size == 0) {
+            return
+        }
+
+        dataChunks.push(e.data)
+        console.log('Recorder data available', e.data.size)
+
+
+        e.data.arrayBuffer().then( arrbuf => {
+            context.decodeAudioData( arrbuf, buffer => {
+                const sample = context.createBufferSource()
+                sample.buffer = buffer
+                sample.connect(context)
+                context.play()
+            })
+        })
+
+
+    }
+
+    recorder.onstop = (e) => {
+        
+    }
+})
+
+
+function start() {
+    
+    recorder.start(20)
+}
+
+
+</script>
+<button onclick="start()">start</button>
+    

@@ -1,24 +1,27 @@
 
-export function captureAudio(recordingContext, {deviceId, chunkSize}, chunkCallback) {
+export function captureAudio(recordingContext, {deviceId, chunkSize, noiseSuppression=false}, chunkCallback) {
     const constraints = { 
         audio: {
           echoCancellation: false,
-          noiseSuppression: false,
+          noiseSuppression,
           autoGainControl: false,
+          // latency: 0,
           deviceId: {exact: deviceId}
       }
     } 
 
+    let source
+    let processor
     
     navigator.mediaDevices.getUserMedia(constraints).then(stream => {
-  
-      const source = recordingContext.createMediaStreamSource(stream)
-      const processor = recordingContext.createScriptProcessor(chunkSize, 2,2)
+      console.log(stream)
+      source = recordingContext.createMediaStreamSource(stream)
+      processor = recordingContext.createScriptProcessor(chunkSize, 2,2)
         
       source.connect(processor)
       processor.connect(recordingContext.destination)
       processor.onaudioprocess = function(e) {
-        let chunk =[
+        let chunk = [
           e.inputBuffer.getChannelData(0).slice(),
           e.inputBuffer.getChannelData(1).slice()
         ]
@@ -27,6 +30,12 @@ export function captureAudio(recordingContext, {deviceId, chunkSize}, chunkCallb
         
       }
     })
+
+    return () => {
+      source.disconnect()
+      processor.disconnect()
+
+    }
   }
   
 export  function cloneAudioBuffer(buf) {
@@ -78,9 +87,10 @@ export function fillBufferWithClick(ch, offset) {
 
     let env = ((offset+i)/44100)%1
     env = Math.pow(1-env, 20)
-
-    ch[0][i] = Math.cos((offset+i)/50) * env
-    ch[1][i] = Math.cos((offset+i)/50) * env
+    const pos = [0,4,7,10][Math.floor((((offset+i)/44100))%4)]
+    const f = Math.pow(2, pos/12)/50
+    ch[0][i] = Math.cos((offset+i)*f) * env
+    ch[1][i] = ch[0][i]
   }
 
 }
@@ -111,6 +121,19 @@ export function rmsBuffer(buffer, stride=1) {
   return Math.sqrt(sum/denom)
 }
 
+export function rmsArray(arr, stride=1) {
+  let denom = 0
+  let sum = 0
+
+  for(let i=0; i<arr.length;i+=stride) {
+      denom+=1
+      let x = arr[i]
+      sum += x*x
+  }
+
+  return Math.sqrt(sum/denom)
+}
+
 export function setStereoGain(buffer, gains) {
   
   for(let ch=0; ch < 2;ch++) {
@@ -126,4 +149,20 @@ export function setStereoGain(buffer, gains) {
   }
 
   
+}
+
+
+export function getTimestamp(uint16array, TIMESTAMP_OFFSET=0) {
+    
+  const bytes = uint16array.slice(TIMESTAMP_OFFSET, TIMESTAMP_OFFSET+4).buffer
+  const floatarray = new Float64Array(bytes)
+  return floatarray[0]
+}
+
+export function setTimestamp(uint16array, val, TIMESTAMP_OFFSET=0) {
+  const floatarray = Float64Array.from([val])
+  const arr = new Uint16Array(floatarray.buffer)
+  for(let i=0; i<4;i++) {
+      uint16array[i+TIMESTAMP_OFFSET] = arr[i]
+  }
 }

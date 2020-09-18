@@ -41,10 +41,10 @@ export default class Packet {
         return packet
     }
 
-    static createAudioBuffer(data) {
+    static createAudioBuffer(data, sampleRate) {
         const chunkLength =  (data.length-HEADER_SIZE)/2
 
-        const buffer = new AudioBuffer({ sampleRate: 44100, length: chunkLength, numberOfChannels: 2})
+        const buffer = new AudioBuffer({ sampleRate, length: chunkLength, numberOfChannels: 2})
         
         
         const ch = [ buffer.getChannelData(0), buffer.getChannelData(1)]
@@ -61,8 +61,8 @@ export default class Packet {
 
 
 
-    createAudioBuffer() {
-        return Packet.createAudioBuffer(this.data)
+    createAudioBuffer(sampleRate) {
+        return Packet.createAudioBuffer(this.data, sampleRate)
     }
 
 
